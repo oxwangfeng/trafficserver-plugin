@@ -149,8 +149,7 @@ Mp4Meta::post_process_meta()
         al_log_debug("mdat_atom not found ");
         return -1;
     }
-    
-    // Zerkkro test trak_num
+
 #if DEBUG_LOG
     al_log_debug("mp4->post_process_meta, trak_num: %d", trak_num);
 #endif
@@ -200,7 +199,6 @@ Mp4Meta::post_process_meta()
 
     //ts_mp4 start time > total time  return -1 ---> download the whole file  
     if(start > (trak_vec[0]->duration / trak_vec[0]->timescale) * 1000) {
-        // Zerkkro check trak num 
         al_log_debug("ts-mp4 trak[0]--total time: %zd", trak_vec[0]->duration / trak_vec[0]->timescale * 1000);
         return -1;
     }
@@ -2093,7 +2091,6 @@ Mp4Meta::mp4_crop_stsc_atom(Mp4Trak *trak)
 
 
     // first chunk
-    // change by Zerkkro
     /*
     if (samples > end_sample)
     {
@@ -2258,7 +2255,6 @@ Mp4Meta::mp4_update_stsz_atom(Mp4Trak *trak)
 #endif
 
     // stsz set end
-    // change by Zerkkro
     if (this->length) {
         if (trak->end_sample > trak->sample_sizes_entries) {
             return -1;

@@ -1,5 +1,4 @@
 2015-11-12 15:06:30
-@Zerkkro
 1. 增加拖动参数精度可配
  1) 时间单位: 毫秒/秒  t:time:ms   t:time:s   默认为秒
  2) 字节单位: KB/B     t:size:kb   t:size:b   默认为字节
@@ -9,7 +8,6 @@ example:
 
 
 2015-09-14 10:19:27
-@Zerkkro
 1. 没有end参数时,插件处理可能会有错误
   mp4_meta.cc
     mp4_update_stts_atom line 1260, 没有end参数时,不更新length
@@ -35,7 +33,6 @@ TSRemapDeleteInstance   中销毁开辟的配置内存
 
 
 2015-08-04 16:27:45
-@Zerkkro
 1. 增加关键帧列表的日志输出
    --> mp4_meta.h, mp4_meta.cc
    新增函数 mp4_print_sync_value()
@@ -51,7 +48,6 @@ TSRemapDeleteInstance   中销毁开辟的配置内存
 
 
 2015-08-04 10:24:47
-@Zerkkro
 
 1. 主要工作
   在ts-mp4的基础上增加end支持

@@ -22,7 +22,6 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
     if (api_info->size < sizeof(TSRemapInterface))
         return TS_ERROR;
 
-    // Zerkkro
     int txn_slot = -1;
     if (TSHttpArgIndexReserve("ts_flv", NULL, &txn_slot) != TS_SUCCESS)
     {
@@ -230,7 +229,7 @@ TSRemapDoRemap(void* ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
     } 
     else if (start_val != NULL)
     {
-        // Zerkkro: start only
+        // start only
         //TSError("start only, buf: %s, buf_len:%d", buf, buf_len);
         TSUrlHttpQuerySet(rri->requestBufp, rri->requestUrl, buf, buf_len);
     }

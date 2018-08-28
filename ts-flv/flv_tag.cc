@@ -292,7 +292,7 @@ FlvTag::parse_script_tag(const char* buffer, int64_t size)
             type = data[offset + i * 9];
             if (type != FLV_NUMBER)
             {
-                TSError("Zerkkro-> strict array invalid type: %d", type);
+                TSError(" strict array invalid type: %d", type);
                 return 0;
             }
             key_offset = (uint64_t)FlvGetDoubleValue(data + offset + i * 9 + 1);
@@ -339,7 +339,7 @@ FlvTag::parse_script_tag(const char* buffer, int64_t size)
         }
     }
 
-    //TSError("Zerkkro-> ts-flv: start=%lf, end=%lf, start_pos=%zd, end_pos=%zd",
+    //TSError("ts-flv: start=%lf, end=%lf, start_pos=%zd, end_pos=%zd",
     //        start, end, start_pos, end_pos);
     return 1;
 }
@@ -538,7 +538,7 @@ FlvTag::process_initial_body()
         // 将脚本帧和第一个0关键帧拷贝到head_buffer
         if (buf[0] == 18)
         {
-            // Zerkkro: script tag
+            // script tag
             if (this->config->use_metadata)
             {
                 AlBuffer    script_buffer;
@@ -650,7 +650,7 @@ FlvTag::process_medial_body()
                 pass = tag_pos - dup_pos;
                 if (pass > 0)
                 {
-                    //TSError("Zerkkro, ts-flv medial body, consume, dup_pos=%zd, "
+                    //TSError("ts-flv medial body, consume, dup_pos=%zd, "
                     //        "pass=%zd",
                     //        dup_pos, pass);
                     TSIOBufferReaderConsume(dup_reader, pass);
@@ -675,7 +675,7 @@ FlvTag::process_medial_body()
     // file_complete
     if (file_complete)
     {
-        //TSError("Zerkkro, ts-flv, file complete, but start_pos hasn't been found"
+        //TSError("ts-flv, file complete, but start_pos hasn't been found"
         //        "start_pos=%zd",
         //        start_pos);
 
