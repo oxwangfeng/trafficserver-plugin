@@ -107,7 +107,6 @@ TSRemapDoRemap(void* ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
     const char          *start_val, *val;
     int                 ret;
     // float精度不够, 改用double
-    // change by dnion
     double               start, end;
     char                buf[1024], buf_end[1024];
     int                 buf_len, buf_len_end;
@@ -201,7 +200,6 @@ TSRemapDoRemap(void* ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
         buf_len = query_len;
     }
 
-    // get end      @change by dnion
     val = ts_arg(buf, buf_len, flv_config->end_arg,
             strlen(flv_config->end_arg), &val_len);
     if (val != NULL) {
@@ -246,8 +244,6 @@ TSRemapDoRemap(void* ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
         return TSREMAP_NO_REMAP;
     }
 
-    // Get url      @Zerkkro
-    // change by dnion
     url = TSUrlStringGet(rri->requestBufp, rri->requestUrl, &url_len);
     if (!url || url_len > 1024)
     {
@@ -562,7 +558,6 @@ flv_transform_handler(TSCont contp, FlvContext *fc)
     if (avail > 0)
     {
         // 根据解析到的end_pos判断数据是否发送
-        // change by dnion
         to_send = ftag->end_pos - ftag->total_offset;
         if (to_send > 0)
         {

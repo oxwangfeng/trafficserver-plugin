@@ -59,7 +59,7 @@ public:
         res_buffer = TSIOBufferCreate();
         res_reader = TSIOBufferReaderAlloc(res_buffer);
 
-        // change by dnion
+
         ftag.start = s;
         ftag.end = e;
         ftag.cl = n;

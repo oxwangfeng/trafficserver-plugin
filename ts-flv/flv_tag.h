@@ -12,7 +12,6 @@
 
 #define FLV_PARSE_OVER  10
 
-// change by dnion
 // flv 配置
 struct FlvConfig
 {
@@ -79,7 +78,6 @@ public:
     int process_header();
     int process_initial_body();
 
-    // change by dnion
     int parse_script_tag(const char *data, int64_t size);
     int parse_script_tag_with_times(const char *data, int64_t size);
     int process_medial_body();

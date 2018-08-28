@@ -105,7 +105,6 @@ FlvTag::process_tag(TSIOBufferReader readerp, bool complete)
     // 记录当前flv是否已经接收完全
     // 没有metatada信息时,如果start在最后一个关键帧内,无法通过跟关键帧的比较还获取
     // 认为当文件接收完全,但还没有找到start位置时,start就是最后一个关键帧
-    // change by dnion
     file_complete = complete;
 
     TSIOBufferReaderConsume(readerp, avail);
@@ -116,7 +115,6 @@ FlvTag::process_tag(TSIOBufferReader readerp, bool complete)
         rc = -1;
     }
 
-    // change by dnion
     if (rc) {       // success or error.
         head_avail = TSIOBufferReaderAvail(head_reader);
 
@@ -194,7 +192,6 @@ FlvTag::process_header()
     IOBufferReaderCopy(tag_reader, buf, 13);
 
     // 如果不是合法的FLV文件,返回全文件
-    // change by dnion
     if ((buf[0] != 'F' || buf[1] != 'L' || buf[2] != 'V')
         || (*(uint32_t*)(buf + 9) != 0))
     {
@@ -210,7 +207,6 @@ FlvTag::process_header()
 
     tag_pos += 13;
 
-    // change by dnion
     // 首次给start_pos赋值
     start_pos = tag_pos;
     end_pos = cl;
@@ -220,7 +216,6 @@ FlvTag::process_header()
 }
 
 // 此函数分析metadata信息，找到start和end对应的偏移量
-// change by dnion
 int
 FlvTag::parse_script_tag(const char* buffer, int64_t size)
 {
@@ -541,7 +536,6 @@ FlvTag::process_initial_body()
             goto end;
 
         // 将脚本帧和第一个0关键帧拷贝到head_buffer
-        // change by dnion
         if (buf[0] == 18)
         {
             // Zerkkro: script tag
@@ -599,7 +593,6 @@ end:
 
     // dup_pos之前的数据是必然会发的
     // 所以如果start_pos比dup_pos小,start_pos取dup_pos的值
-    // change by dnion
     if (start_pos < dup_pos)
         start_pos = dup_pos;
 
@@ -650,7 +643,6 @@ FlvTag::process_medial_body()
             return 0;
 
         // 遍历方式解析start的位置
-        // change by dnion
         if (buf[0] == 9 && (((uint8_t)buf[11]) >> 4) == 1)    // key frame
         {
             if (tag_pos <= (int64_t)start) 
@@ -681,7 +673,6 @@ FlvTag::process_medial_body()
     } while (avail > 0);
 
     // file_complete
-    // change by dnion
     if (file_complete)
     {
         //TSError("Zerkkro, ts-flv, file complete, but start_pos hasn't been found"
@@ -754,7 +745,6 @@ FlvTag::process_medial_body_by_time()
 // 此函数判断当前可用的数据中是否包含可以发送给客户的数据
 // 如果flv文件包含可用的metadata信息,在分析完metadata后会调用此函数
 // 如果没有可用的metadata信息,则在逐帧解析出start_pos后调用
-// change by dnion
 int
 FlvTag::process_output_data()
 {
@@ -837,7 +827,6 @@ IOBufferReaderCopy(TSIOBufferReader readerp, void *buf, int64_t length)
 }
 
 // 获取double值
-// change by dnion
 static double FlvGetDoubleValue(const char* data)
 {
     uni_double ret;
