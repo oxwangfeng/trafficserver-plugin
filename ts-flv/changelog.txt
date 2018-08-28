@@ -1,0 +1,173 @@
+﻿2015-08-19
+1. 修改remap.config存在多条map规则时,参数被覆盖的bug
+   1) TSRemapNewInstance: new一个结构体保存配置,并将其指定给ih
+   2) TSRemapDeleteInstance: 结束时释放这个结构
+2. 修改配置的方法,与mp4的配置方法一致,可以不用按固定的顺序写配置
+    参数形式为       t:time
+   1) 类型 t:               time-按时间拖动  size-按字节拖动 默认为字节
+   2) 是否使用metadata m:   1 使用     0 不使用      默认使用
+   3) start参数 s:          默认为start
+   4) end参数 e:            默认为end
+ ex: 以下是一条配置实例
+  --> map http://172.16.19.144 http://192.168.10.139 @plugin=/path/flv.so @pparam=t:time @pparam=m:1 @pparam=s:start_pos @pparam=e:end_pos 
+
+
+
+2015-08-19
+1. start和end参数可配置
+   flv_common.h line 29 重定FlvConfig结构
+   flv.cc : 1) TSRemapNewInstance 获取配置中的start和end参数
+            2) TSRemapDoRemap 用获取的参数获取url参数值
+
+
+2015-06-23
+1. 删除注释的代码
+    flv.cc line 523
+2. 修改内存占用太大的错误
+    flv_tag.cc line 784   释放tag_reader的无效内容
+    flv_tag.cc line 794   释放tag_reader的无效内容
+----------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+2015-06-23
+1. 原来的做法是接收到的数据都经过FlvTag::process_tag()处理,但是由于TSIOBufferCopy使用不当,使得内存使用太多,
+  现在还是使用插件原来的做法,经过process_tag处理后得到开始位置和结束位置,判断后续数据是否发送
+    flv.cc line 563
+    flv_tag.cc
+        write_out()  line 162
+        process_output_data()  不再将数据拷贝到另一个buffer中
+2. 修改url的存放方式
+  1) flv.cc line 247 
+  2) FlvContext, FlvTag类中增加url成员变量
+  3) flv_common.h line  77 增加 FlvTag的url赋值
+----------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+2015-06-18
+1. 根据需求,将每次都发送的script tag和第一个0关键帧改为发送script tag和前两个0数据帧
+  flv_tag.cc line 553
+2. 修改一处可能导致程序崩溃的bug
+  flv_tag.cc line 231, line 249 增加数组越界判断
+3. 支持按时间拖动
+    -- 需要metadata里有duration信息
+  1) remap.config 第一个参数设置为time,此时为按时间拖动
+  2) 新增函数 parse_script_tag_with_times
+  3) 新增函数 process_medial_body_by_time
+  4) 判断是否是按时间拖动 flv_tag.cc line 217, line 607
+----------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+2015-06-15
+1. 回源url说明
+  参数正常时,回源的url的args会去掉start和end参数;如果start,end的参数异常,比如end<=start,插件返回TS_NOREMAP, 回源的参数会附带start和end
+2. 修改end参数存在时不记录日志的bug
+  flv.cc 删除line 535-538, line 546-550代码
+3. 修改flv文件不是合法的flv文件时,链接卡住的问题
+  flv_tag.cc line 182
+-----------------------------------------------------------------------------------------------------------------
+
+
+
+2015-06-11
+需求变更,现在任何情况下都发送script帧和第一个0关键帧
+
+flv_tag.h
+  去掉了first_keyframe_buffer和first_keyframe_reader的相关代码
+  去掉了start_key和sec_zero_key_offset的相关代码
+flv_tag.cc
+  1. 去掉了first_keyframe_buffer
+  2. process_initial_body   line 321
+    删除 has_metadata = 0 这句代码导致的重复赋值使的程序不走metadata解析流程的bug
+    修改代码,将script帧和第一个0关键帧拷贝到head_buffer中,始终发送
+remap.config
+  第五个参数控制是否发送第一个0关键帧,因为现在始终发送,所以此参数暂时无效
+
+-------------- 关于start, end, script tag, 0关键帧以及关键帧对齐的说明 -------------
+1. 接收到的url中,如果start<=end, 直接返回TS_NOREMAP
+2. script tag 包含metadata信息,正常情况下包含关键帧列表,记录关键帧的位置以及时间
+3. 一个FLV文件包含两个时间戳为0的关键帧,第一个0关键帧可能含有播放器需要的控制信息,
+    如果没有第一个0关键帧,部分播放器无法播放
+4. 按照现在的需求,script和第一个0关键帧每次都发送,所以,start和end参数向左对齐到所处关键帧
+    的开始位置.如果start和end对齐到同一个关键帧,则只返回FLV头+script+第一个0关键帧
+------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+2015-06-10
+有可用的metadata信息时,支持start, end的字节拖动
+没有可用metadata信息时,支持start的字节拖动
+
+修改第一个0数据帧总是发送的bug
+    flv_tag.cc line 119     start_key  ----> start_key <= 1
+    flv_tag.cc line 160     start_key  ----> start_key <= 1
+    flv_tag.cc line 297     start_key = i  ---> start_key = i - 1 > 0 ? i - 1 : 0
+没有metadata时,支持start参数
+
+
+
+
+
+2015-06-09
+完成ats下含有可用metadata信息的flv视频文件的拖动功能
+
+flv.cc
+  TSRemapNewInstance函数中
+    1. 增加了对配置参数的获取 
+  TSRemapDoRemap函数中
+    1. 增加url获取  
+    2. 增加了end参数的获取
+  flv_transform_handler 函数中
+    1. line 525,  所有的数据都经过ftag->process_tag处理,而不是原来的,解析到之后直接发完所有数据   
+flv_common.h
+  1. line27  增加了一个flv配置的类
+  2. line 67 修改FlvTransformContext类的初始化函数,增加了end,并验证了start参数是否合理
+  3. line 106 修改了FlvContext类,增加了end参数
+flv_tag.h
+  修改FlvTag类
+    1. 增加了参数 end, start_pos, end_pos, total_offset, start_key, sec_zero_key_offset, has_metadata
+            first_keyframe_buffer, first_keyframe_reader, out_buffer, out_reader
+    2. 增加了函数
+      1) parse_script_tag       -- 解析metadata信息
+      2) process_output_data    -- 获取到start_pos后发数据    
+flv_tag.cc
+  1. process_tag    line 98
+    修改了发送长度的获取
+  2. write_out      line 144
+    重新判断要write out的数据
+  3. process_handler    line 181
+    增加了start_pos 和 end_pos 的初始赋值
+  4. parse_script_tag   line 212
+    解析metadata信息
+  5. process_initial_body line  336
+    1) 增加了判断是否有metadata
+    2) 将第一个0数据帧拷贝到first_keyframe_buffer
+    3) 根据是否有可用的metadata信息判断下一个handler
+  6. process_medial_body    line 440
+    没有可用metadata信息时,逐帧解析获取start_pos, end_pos取文件尾
+  7. process_output_data    line 512
+    根据start_pos 和 end_pos 判断当前是否有有效数据发送
+  8. FlvGetDoubleValue  line 588
+    获取double值
+  
+  
+  
+  
+  
+  
+  
+  
+  

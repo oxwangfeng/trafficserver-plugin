@@ -1,0 +1,382 @@
+一、一些概念
+1. mp4文件中的所有数据都装在box中(以前叫atom)
+2. track (trak): 一些sample的集合,对于媒体数据来说,track表示一个视频或音频序列.一般的mp4视频由一个视频track和一个音频track组成
+3. hint track: 这个特殊的track并不包含媒体数据,而是包含了一些将其他数据track打包成媒体的指示信息
+4. sample: 对于非hint track来说, video sample即为一帧视频,或者一组连续视频帧,audio sample即为一段连续的压缩音频,它们统称sample.对于hint track,sample定义一个或多个流媒体包的格式
+5. sample table: 指明sample时序和物理布局的表
+6. chunk: 一个track的几个sample组成的单元
+
+二、MP4格式分析
+   一般的MP4文件格式如下:
++------+                                                   +------+
+| ftyp |                                                |->| stsd |
++------+   +------+                                     |  +------+
+| moov |-->| mvhd |                                     |  | stts |
++------+   +------+   +------+                          |  +------+
+| mdat |   | trak |-->| thkd |                          |  | stss |
++------+   +------+   +------+   +------+     +------+  |  +------+
+           | trak |   | mdia |-->| mdhd |  |->| vmhd |  |  | ctts |
+           +------+   +------+   +------+  |  +------+  |  +------+
+           | .... |              | hdlr |  |  | smhd |  |  | stsc |
+           +------+              +------+  |  +------+  |  +------+
+           | udta |              | minf |--|  | dinf |  |  | stsz |
+           +------+              +------+     +------+  |  +------+
+                                              | stbl |--|  | stco |
+                                              +------+     +------+
+                                                           | co64 |
+                                                           +------+
+
+不论是container box还是子box,最开始存放的都是此box的大小和类型,解析时结构如下:
+typedef struct
+{
+    u_char  size[4];
+    u_char  name[4];
+} mp4_atom_header;
+
+需要判断size的值,当size=1时,使用如下的64位的结构:
+
+typedef struct
+{
+    u_char  size[4];
+    u_char  name[4];
+    u_char  size64[8];
+} mp4_atom_header64;
+
+size(64-bit下为size64) 指定当前box的大小,name指定当前box的类型
+
+1. File Type Box (ftyp)
+该box有且只有1个，并且只能被包含在文件层，而不能被其他box包含。该box应该被放在文件的最开始，指示该MP4文件应用的相关信息。
+
+2. Movie Box (moov)
+该box包含了文件媒体的metadata信息，moov是一个container box，具体内容在其子box中，该box有且只有一个，且只被包含在文件层。一般情况下，moov会紧随ftyp出现。
+一般情况下，moov中会包含一个mvhd和若干个trak
+
+2.1 Movie Header Box (mvhd)
+mvhd定义了整个movie的特性，例如timescale和duration。
+解析时结构如下
+typedef struct {
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    creation_time[4];
+    u_char    modification_time[4];
+    u_char    timescale[4];
+    u_char    duration[4];
+    u_char    rate[4];
+    u_char    volume[2];
+    u_char    reserved[10];
+    u_char    matrix[36];
+    u_char    preview_time[4];
+    u_char    preview_duration[4];
+    u_char    poster_time[4];
+    u_char    selection_time[4];
+    u_char    selection_duration[4];
+    u_char    current_time[4];
+    u_char    next_track_id[4];
+} mp4_mvhd_atom;
+
+typedef struct {
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    creation_time[8];
+    u_char    modification_time[8];
+    u_char    timescale[4];
+    u_char    duration[8];
+    u_char    rate[4];
+    u_char    volume[2];
+    u_char    reserved[10];
+    u_char    matrix[36];
+    u_char    preview_time[4];
+    u_char    preview_duration[4];
+    u_char    poster_time[4];
+    u_char    selection_time[4];
+    u_char    selection_duration[4];
+    u_char    current_time[4];
+    u_char    next_track_id[4];
+} mp4_mvhd64_atom;
+
+version为0时，结构为32位，否则使用64位结构体解析
+
+2.2 Track Box (trak)
+一个Trackatom定义了movie中的一个track。一部movie可以包含一个或多个tracks，它们之间相互独立，各自有各自的时间和空间信息。每个track atom 都有与之关联的media atom。trak必须包含一个tkhd和一个mdia，此外还有很多可选的box
+Track 主要用于以下目的：
+•包含媒体数据引用和描述(media tracks)
+•包含modifier tracks (tweens 等)
+•对于流媒体协议的打包信息(hint tracks)。Hint tracks 可以引用或者复制对应的媒体sample data。
+Hint tracks 和modifier tracks 必须保证完整性，同时和至少一个mediatrack 一起存在。换句话说，即使hint tracks 复制了对应的媒体sample data，media tracks 也不能从一部hinted movie 中删除。
+Track atoms 的atom 类型是'trak'. Track atom 要求必须有一个track headeratom ('tkhd') 和一个media atom ('mdia')。其他的track clipping atom ('clip')，track matteatom ('matt')，edit atom ('edts')，track reference atom ('tref')，track loadsettings atom ('load')，a track input map atom ('imap')以及user data atom ('udta')都是可选的。
+Track atoms 是一个容器atom，本身没有特别的字段，需要子atom 来进一步说明有效的内容。每个trak 都包含了一个track header atom.
+
+
+2.2.1 Track Header Box (tkhd)
+解析时结构如下
+typedef struct {
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    creation_time[4];
+    u_char    modification_time[4];
+    u_char    track_id[4];
+    u_char    reserved1[4];
+    u_char    duration[4];
+    u_char    reserved2[8];
+    u_char    layer[2];
+    u_char    group[2];
+    u_char    volume[2];
+    u_char    reverved3[2];
+    u_char    matrix[36];
+    u_char    width[4];
+    u_char    heigth[4];
+} mp4_tkhd_atom;
+
+typedef struct {
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    creation_time[8];
+    u_char    modification_time[8];
+    u_char    track_id[4];
+    u_char    reserved1[4];
+    u_char    duration[8];
+    u_char    reserved2[8];
+    u_char    layer[2];
+    u_char    group[2];
+    u_char    volume[2];
+    u_char    reverved3[2];
+    u_char    matrix[36];
+    u_char    width[4];
+    u_char    heigth[4];
+} mp4_tkhd64_atom;
+version为0时，结构为32位，否则使用64位结构体解析
+
+
+2.2.2 Media Box (mdia)
+mdia定义了trak的媒体类型和sample数据,例如音频或视频.
+mdia是一个容器box,必须包含一个mdhd, 一个hdlr, 一个minf和用户数据udta
+
+2.2.2.1 Media Header Box (mdhd)
+mdhd定义了媒体的特性,例如timescale和duration.
+trak需要通过timescale换算成真实时间.
+
+解析时结构如下
+typedef struct {
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    creation_time[4];
+    u_char    modification_time[4];
+    u_char    timescale[4];
+    u_char    duration[4];
+    u_char    language[2];
+    u_char    quality[2];
+} mp4_mdhd_atom;
+
+typedef struct {
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    creation_time[8];
+    u_char    modification_time[8];
+    u_char    timescale[4];
+    u_char    duration[8];
+    u_char    language[2];
+    u_char    quality[2];
+} mp4_mdhd64_atom;
+version为0时，结构为32位，否则使用64位结构体解析
+
+2.2.2.2 Handler Reference Box (hdlr)
+hdlr解释了媒体流的播放过程.例如,一个视频handler处理一个video track.
+
+2.2.2.3 Media Information Box (minf)
+minf存储了解释该track的媒体数据的handler-specific的信息
+
+2.2.2.3.1 Media Information Header Box (vmhd,smhd)
+(1) vmhd: 视频媒体
+(2) smhd: 音频媒体
+
+
+2.2.2.3.2 Data Information Box (dinf)
+dinf解释如何定位媒体信息.dinf一般包含一个dref,dire下会包含若干个url或urn,这些box组成一个表,用来定位track数据.
+
+2.2.2.3.3 Sample Table Box (stbl)
+stbl包含了关于track中sample所有时间和位置信息,以及sample的编码解码信息.利用这个表,可以解释sample的时序/类型/大小以及在各自存储容器中的位置.stbl是一个container box,子box包括有:
+
+(1) sample descriptions (stsd)
+stsd包含了编码的信息,其存储的信息随媒体类型的不同而不同
+
+解析时结构如下
+typedef struct
+{
+    u_char  size[4];
+    u_char  name[4];
+    u_char  version[1];
+    u_char  flags[3];
+    u_char  entries[4];
+
+    u_char  media_size[4];
+    u_char  media_name[4];
+} mp4_stsd_atom;
+
+(2) time-to-sample (stts)
+stts提供了时间对具体data sample的映射方法,通过这个box可以找到任何时间的sample.
+指定每个sample的PTS
+
+解析时结构如下
+typedef struct
+{
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    entries[4];
+} mp4_stts_atom;
+
+紧随其后的是entries个这样的结构
+typedef struct
+{
+    u_char    count[4];
+    u_char    duration[4];
+} mp4_stts_entry;
+表示这几个sample具有相同的duration,count*duration可以得到这一段sample的时间;当然,这个时间是经过当前trak的timescale换算过的.
+
+(3) (composition) time to sample (ctts) (备注一)
+
+解析时结构如下:
+typedef struct {
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    entries[4];
+} mp4_ctts_atom;
+
+紧随其后的是entries个这样的结构:
+typedef struct {
+    u_char    count[4];
+    u_char    offset[4];
+} mp4_ctts_entry;
+
+(4) sync sample table (random access points) (stss)
+stss确定media中的关键帧,关键帧是一系列压缩序列的开始帧,它的解压缩不依赖于以前的帧,后续帧的解压缩依赖于这个关键帧.
+解析时结构如下:
+typedef struct {
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    entries[4];
+} mp4_stss_atom;
+紧随其后的是entries个uint32_t,每个uint32_t代表一个关键帧的开始sample
+
+
+(5) sample-to-chunk, partial data-offset information (stsc)
+stsc存放一张表来映射sample和chunk之前的关系,通过这张表可以包含指定sample的chunk,从而找到这个sample
+解析时结构如下:
+typedef struct 
+{
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    entries[4];
+} mp4_stsc_atom;
+
+紧随其后的是entries个这样的结构:
+typedef struct
+{
+    u_char  chunk[4];
+    u_char  samples[4];
+    u_char  id[4];
+} mp4_stsc_entry;
+
+假设有两个相连的mp4_stsc_entry结构A和B,则第A.chunk到B.chunk之间的每个chunk的sample数量都是A.samples
+如果entries=1,只有一个mp4_stsc_entry结构A,则表示每个chunk的sample数量都是A.samples
+
+
+(6) sample sizes (framing) (stsz)
+stsz包含了媒体中全部sample的数目和一张给出每个sample大小的表.这样,媒体数据自身就可以没有边框的限制
+
+解析时结构如下:
+typedef struct 
+{
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    uniform_size[4];
+    u_char    entries[4];
+} mp4_stsz_atom;
+
+如果uniform_size为0,紧随其后的是entriesg个uint32_t,指定了每个sample的大小;如果uniform_size不为0,则表示每个sample的大小都是相同的,就是uniform_size.
+
+(7) stco/co64  -- chunk offset
+这个box定义了每个chunk在媒体流中的位置
+解析时结构如下
+typedef struct 
+{
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    entries[4];
+} mp4_stco_atom;
+
+typedef struct
+{
+    u_char    size[4];
+    u_char    name[4];
+    u_char    version[1];
+    u_char    flags[3];
+    u_char    entries[4];
+} mp4_co64_atom;
+一旦前面的box有了任何的改变,这张表都要重新建立,因为位置信息已经改变了.
+
+
+
+
+
+
+
+
+
+
+备注一:
+ MP4 封装中 ctts BOX中（ composition times）
+ 
+指定每个sample的DTS (参考http://blog.csdn.net/w839687571/article/details/41725811)
+
+http://marycomputer.blog.163.com/blog/static/1760586412011413825709/
+
+仅仅使用前一个显示的基准帧来编码的帧被称为“P帧”，
+
+同时使用前一个显示帧和未来帧作为基准帧进行编码的帧称为“B帧”。
+
+在通常的场景中，编解码器编码一个I帧，然后向前跳过几个帧，用编码I帧作为基准帧对一个未来P帧进行编码，然后跳回到I帧之后的下一个帧。编码的I帧和P帧之间的帧被编码为B帧。之后，编码器会再次跳过几个帧，使用第一个P帧作为基准帧编码另外一个P帧，然后再次跳回，用B帧填充显示序列中的空隙。这个过程不断继续，每12到15个P帧和B帧内插入一个新的I帧。
+
+
+节目输入顺序是按实际出现顺序排列的，即I、B、B、P、B、B、P、B、B……I、B、B、P……；但为了解码时便于从I、P画面插补得到B画面，在编码录制节目时，将顺序改变了，即按照I、P、B、B……顺序，即改为按原来0、3、1、2、6、4、5、9、7、8…的画面顺序。解码时先解出0帧、3帧，再由其插补预测计算得出1帧、2帧等等。为此，须在解码器内设置动态存储器，将I、P帧先解码并存储，再计算出各个B帧。不过最后输出时，还是应当按照实际播放顺序重组读出，按正确顺序输出。
+
+I B B P B B P...B B I
+1 2 3 4 5 6 7...
+
+  (a) 显示顺序  （PTS 显示时间戳顺序）
+  
+I P B B P B B...I B B
+1 4 2 3 7 5 6...
+  (b) 编解码顺序（DTS 时间戳的顺序，在封装Nalus时时间戳顺序）
+
+
+当带有B帧的Nalus流封装后，再次解码显示，此时PTS 和 DTS 不能一一对应，因为B帧的时间戳小于P帧，此时CTS 可以记录这个偏差，用以回复解码的时间戳。
+
+{
+CTS :provides the offset between decoding time and composition time. Since decoding time must be less than the composition time, the offsets are expressed as unsigned numbers such that CT(n) = DT(n) +CTTS(n) where CTTS(n) is the (uncompressed) table entry for sample n.
+}
+这个问题：
+http://stackoverflow.com/questions/7054954/the-composition-timects-when-wrapping-h-264-nalus

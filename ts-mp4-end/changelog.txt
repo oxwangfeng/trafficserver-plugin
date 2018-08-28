@@ -1,0 +1,90 @@
+2015-11-12 15:06:30
+@Zerkkro
+1. 增加拖动参数精度可配
+ 1) 时间单位: 毫秒/秒  t:time:ms   t:time:s   默认为秒
+ 2) 字节单位: KB/B     t:size:kb   t:size:b   默认为字节
+example:
+ @plugin=/path/mp4.so @pparam=t:time:ms @pparam=s:timecode
+
+
+
+2015-09-14 10:19:27
+@Zerkkro
+1. 没有end参数时,插件处理可能会有错误
+  mp4_meta.cc
+    mp4_update_stts_atom line 1260, 没有end参数时,不更新length
+
+
+
+2015-08-19
+1.增加remap.conf 配置参数   example 如下:
+@plugin=/usr/lib64/trafficserver/plugins/libtsmp4.so  @pparam=s:starts @pparam=e:ends 
+
+配置start  end 关键字拖动可以配置
+
+2. 修复了remap 多条map规则回覆盖其它规则的配置问题 目前是每条规则使用该条规则自身的配置 不会互相干扰
+新增结构
+ typedef struct _mp4_config_info {
+    char* start;
+    char* end;
+} mp4_config_info;
+
+TSRemapNewInstance  中获取参数 并初始化默认参数 分配每个remap 规则的配置内存
+TSRemapDeleteInstance   中销毁开辟的配置内存 
+
+
+
+2015-08-04 16:27:45
+@Zerkkro
+1. 增加关键帧列表的日志输出
+   --> mp4_meta.h, mp4_meta.cc
+   新增函数 mp4_print_sync_value()
+2. -->mp4_meta.cc
+   1) mp4_find_key_sample()
+   line 2306: 以时间计算出来的sample跟关键帧列表的数据相比,关键帧的数值要减去1
+   2) mp4_update_stts_atom()
+   line 1220: 修改start_sample的计算方式
+   3) mp4_crop_stts_atom()
+   line 1340: 修改end_sample的计算方式
+
+
+
+
+2015-08-04 10:24:47
+@Zerkkro
+
+1. 主要工作
+  在ts-mp4的基础上增加end支持
+2. 需要注意的问题
+当前的做法是需要对齐到关键帧,具体做法是,找到trak内的stss_box,对比关键帧列表找到对应的sample;那如果处理的第一个trak内没有stss_box,程序会用url参数来处理,此时再处理到有stss_box的trak时,在去对齐到关键帧,解析出来的文件就有问题.
+3. 修改内容
+  --> mp4_meta.h
+  1) line 97: TSMp4AtomID中删除MP4_STSC_CHUNK项
+  2) line 99: TSMp4AtomID中增加MP4_STSC_END_CHUNK项
+  3) line 352: Mp4Trak中增加end_sample,end_chunk,end_chunk_samples,
+    end_chunk_samples_size,end_offset成员变量以及初始化
+  4) line 417: 将stsc_chunk移动到co64_data之后
+  5) line 433: Mp4Meta中增加end,length,ls成员变量以及初始化
+  --> mp4_meta.cc
+  1) post_process_meta() 中获取length,计算end_offset
+  2) mp4_update_stts_atom()
+    line 1183: 对齐关键帧后重新指定start和length
+  3) 新增 mp4_crop_stts_atom()
+    line 1212: 更新stts_atom,支持end参数
+  4) 新增 mp4_crop_stss_atom()
+    line 1414: 更新stss_atom,支持end参数
+  5) 新增 mp4_crop_ctts_atom()
+    line 1543: 更新ctts_atom,支持end参数
+  6) mp4_update_stsc_atom()
+    line 1719: 在根据start处理stsc_atom时,如果需要新建buffer存储第一个stsc_entry,则直接更新stsc_data,这样可以简化end支持的处理工作
+  7) 新增 mp4_crop_stsc_atom()
+    line 1735: 更新stsc_atom,支持end参数
+  8) mp4_update_stsz_atom()
+    line 1931: 增加end参数支持
+  9) mp4_update_co64_atom()
+    line 2004: 增加end参数支持
+  10) mp4_update_stco_atom()
+    line 2073: 增加end参数支持
+  --> mp4.cc
+  1) mp4_transform_handler()
+    line 563: end_offset之后的数据需要释放

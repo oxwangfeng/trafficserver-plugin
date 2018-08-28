@@ -1,0 +1,25 @@
+ATS FLV插件说明
+
+# 注: 以下提及的返回前三帧,指的是 13字节的文件头 + script tag + 前两个0数据帧
+# 前两个0数据帧是指文件开始的在script tag之后的两个时间戳为0的数据帧,一般情况下在第一个0关键帧内
+# 但是有的FLV文件的只有一个0关键帧,或者有两个0关键帧但是第一个0关键帧内只有一个数据帧
+# 现在统一规定,发送前两个0数据帧
+
+一. 解析start和end参数 (double值)
+  1) 如果参数不存在或者参数异常(小于0或者为非数字字符)时, 记为0
+  2) 如果start和end同为0, 返回TS_NOREMAP
+  3) 如果start >= end, 返回TS_NOREMAP
+  4) 如果start大于等于文件总长度, 返回全文件
+  5) 如果end大于文件总长度,end取文件长度
+  
+二. 解析flv文件
+1. 如果文件头不符合flv文件的格式,返回全文件
+2. 根据metadata信息获取偏移量start_pos和end_pos
+  1) 根据start和end参数向左对齐到关键帧开始的位置,start不存在时从0开始,end不存在时默认为文件结尾
+  2) 如果解析出来start_pos >= end_pos, 返回前三帧
+3. metadata信息不可用时,逐帧解析出start_pos,此时end参数无效,发送前三帧和start_pos到文件结束的部分
+
+三. 安装部署
+1. make && make install
+2. 配置ATS的remap.config @plugin=插件位置
+3. 重启traffic server
